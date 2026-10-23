@@ -1,0 +1,38 @@
+<div class="panel">
+  <h2>Все элементы</h2>
+
+  <div class="filter-row">
+    <input
+      type="text"
+      placeholder="Фильтр по ID..."
+      [ngModel]="filterQuery()"
+      (ngModelChange)="updateFilter($event)"/>
+  </div>
+
+  <div class="add-row">
+    <input
+      type="number"
+      placeholder="Новый ID"
+      [ngModel]="newId()"
+      (ngModelChange)="updateNewId($event)"/>
+    <button (click)="addItem()" [disabled]="newId() === null">Добавить</button>
+  </div>
+
+  <cdk-virtual-scroll-viewport
+    itemSize="48"
+    class="viewport"
+    (scrolledIndexChange)="onScrolled()"
+    (scroll)="onScrolled()">
+    <div
+      *cdkVirtualFor="let id of items()"
+      class="item-row"
+      (click)="selectItem(id)">
+      <span class="item-id">{{ id }}</span>
+      <button class="select-btn">→</button>
+    </div>
+  </cdk-virtual-scroll-viewport>
+
+  <div class="footer">
+    Загружено: {{ items().length }} / {{ total() }}
+  </div>
+</div>

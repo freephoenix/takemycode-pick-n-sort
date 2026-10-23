@@ -1,0 +1,37 @@
+<div class="panel">
+  <h2>Выбранные</h2>
+
+  <div class="filter-row">
+    <input
+      type="text"
+      placeholder="Фильтр по ID..."
+      [ngModel]="filterQuery()"
+      (ngModelChange)="updateFilter($event)"/>
+  </div>
+
+  <cdk-virtual-scroll-viewport
+    itemSize="48"
+    class="viewport"
+    (scrolledIndexChange)="onScrolled()"
+    (scroll)="onScrolled()">
+    <div
+      cdkDropList
+      [cdkDropListData]="items()"
+      (cdkDropListDropped)="drop($event)">
+      <div
+        *cdkVirtualFor="let id of items(); let idx = index; templateCacheSize: 0; trackBy: trackById"
+        cdkDrag
+        [cdkDragData]="[id, idx]"
+        [attr.data-drag-index]="idx"
+        class="item-row">
+        <span class="drag-handle">⠿</span>
+        <span class="item-id">{{ id }}</span>
+        <button class="remove-btn" (click)="deselectItem(id)">←</button>
+      </div>
+    </div>
+  </cdk-virtual-scroll-viewport>
+
+  <div class="footer">
+    Загружено: {{ items().length }} / {{ total() }}
+  </div>
+</div>
