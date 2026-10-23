@@ -1,7 +1,5 @@
 import express from 'express';
 import cors from 'cors';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 
 import { store } from './store.js';
 import { dedupQueue } from './queue.js';
@@ -131,20 +129,7 @@ app.get('/api/items/state', (req, res) => {
   });
 });
 
-// ─── Раздача Angular (production, вариант B) ─────────────
-// Статика и SPA-fallback регистрируются ПОСЛЕ API-роутов,
-// иначе express.static перехватит /api/*.
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const angularDist = path.join(__dirname, 'public');
-
-app.use(express.static(angularDist));
-
-// SPA-fallback: всё, что не /api и не существующий файл,
-// отдаём index.html — чтобы Angular Router сам разобрал маршрут.
-app.get(/^\/(?!api\/).*/, (req, res) => {
-  res.sendFile(path.join(angularDist, 'index.html'));
-});
+app.get('/', (_req, res) => res.json({ ok: true }));
 
 // ─── Запуск ───────────────────────────────────────────────
 
