@@ -1,4 +1,4 @@
 export const environment = {
   production: true,
-  apiUrl: 'https://ВАШ-БЭКЕНД.onrender.com/api' // URL будет известен после деплоя бэкенда
+  apiUrl: 'https://takemycode-pick-n-sort.onrender.com/api/items',
 };
