@@ -4,29 +4,33 @@
   <div class="filter-row">
     <input
       type="text"
-      placeholder="Фильтр по ID..."
+      placeholder="Фильтр по содержимому..."
       [ngModel]="filterQuery()"
-      (ngModelChange)="updateFilter($event)"/>
+      (ngModelChange)="updateFilter($event)"
+    />
   </div>
 
   <cdk-virtual-scroll-viewport
     itemSize="48"
     class="viewport"
     (scrolledIndexChange)="onScrolled()"
-    (scroll)="onScrolled()">
+    (scroll)="onScrolled()"
+  >
     <div
       cdkDropList
       [cdkDropListData]="items()"
-      (cdkDropListDropped)="drop($event)">
+      (cdkDropListDropped)="drop($event)"
+    >
       <div
-        *cdkVirtualFor="let id of items(); let idx = index; templateCacheSize: 0; trackBy: trackById"
+        *cdkVirtualFor="let item of items(); let idx = index; templateCacheSize: 0; trackBy: trackById"
         cdkDrag
-        [cdkDragData]="[id, idx]"
+        [cdkDragData]="[item, idx]"
         [attr.data-drag-index]="idx"
-        class="item-row">
+        class="item-row"
+      >
         <span class="drag-handle">⠿</span>
-        <span class="item-id">{{ id }}</span>
-        <button class="remove-btn" (click)="deselectItem(id)">←</button>
+        <span class="item-content">{{ item.content }}</span>
+        <button class="remove-btn" (click)="deselectItem(item)">←</button>
       </div>
     </div>
   </cdk-virtual-scroll-viewport>

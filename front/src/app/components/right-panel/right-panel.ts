@@ -13,7 +13,7 @@ import { FormsModule } from '@angular/forms';
 import { CdkVirtualScrollViewport, ScrollingModule } from '@angular/cdk/scrolling';
 import { CdkDragDrop, DragDropModule, moveItemInArray } from '@angular/cdk/drag-drop';
 import { Subscription } from 'rxjs';
-import { Items, PageResponse } from '../../services/items';
+import { Item, Items } from '../../services/items';
 import { ItemsSync } from '../../services/items-sync';
 
 @Component({
@@ -27,7 +27,7 @@ import { ItemsSync } from '../../services/items-sync';
 export class RightPanel implements OnInit, AfterViewInit, OnDestroy {
   @ViewChild(CdkVirtualScrollViewport)
   viewport!: CdkVirtualScrollViewport;
-  items = signal<number[]>([]);
+  items = signal<Item[]>([]);
   total = signal(0);
   hasMore = signal(true);
   loading = signal(false);
@@ -37,15 +37,18 @@ export class RightPanel implements OnInit, AfterViewInit, OnDestroy {
   private nextOffset = 0;
   private loadedOnce = false;
   private readonly PAGE_SIZE = 20;
+  private readonly FILTER_DEBOUNCE_MS = 250;
   private syncSub?: Subscription;
+  private loadSub?: Subscription;
+  private filterDebounce?: ReturnType<typeof setTimeout>;
 
-  readonly trackById = (_: number, id: number) => id;
+  readonly trackById = (_: number, item: Item) => item.id;
 
   ngOnInit() {
     this.loadMore();
     this.syncSub = this.sync.changes.subscribe((event) => {
-      if (event.type === 'selected') this.onSyncSelected(event.id);
-      else if (event.type === 'deselected') this.onSyncDeselected(event.id);
+      if (event.type === 'selected') this.onSyncSelected(event.item);
+      else if (event.type === 'deselected') this.onSyncDeselected(event.item);
     });
   }
 
@@ -55,6 +58,10 @@ export class RightPanel implements OnInit, AfterViewInit, OnDestroy {
 
   ngOnDestroy() {
     this.syncSub?.unsubscribe();
+    this.loadSub?.unsubscribe();
+    if (this.filterDebounce) {
+      clearTimeout(this.filterDebounce);
+    }
   }
 
   onScrolled() {
@@ -66,23 +73,21 @@ export class RightPanel implements OnInit, AfterViewInit, OnDestroy {
     if (this.loadedOnce && !this.hasMore()) return;
 
     this.loading.set(true);
-    this.itemsService
+    this.loadSub = this.itemsService
       .getItems('selected', this.nextOffset, this.PAGE_SIZE, this.filterQuery())
       .subscribe({
-        next: (res: PageResponse<number>) => {
+        next: (res) => {
           this.items.update(prev => [...prev, ...res.items]);
           this.total.set(res.total);
-
           const computedNext = res.nextOffset ?? (this.nextOffset + res.items.length);
           const computedHasMore = res.hasMore ?? (computedNext < res.total);
-
           this.nextOffset = computedNext;
           this.hasMore.set(computedHasMore);
           this.loadedOnce = true;
           this.loading.set(false);
           setTimeout(() => this.checkScroll());
         },
-        error: (err: Error) => {
+        error: (err) => {
           console.error('[right] loadMore failed', err);
           this.loading.set(false);
         },
@@ -90,6 +95,9 @@ export class RightPanel implements OnInit, AfterViewInit, OnDestroy {
   }
 
   applyFilter() {
+    this.loadSub?.unsubscribe();
+    this.loadSub = undefined;
+    this.loading.set(false);
     this.nextOffset = 0;
     this.items.set([]);
     this.hasMore.set(true);
@@ -97,26 +105,14 @@ export class RightPanel implements OnInit, AfterViewInit, OnDestroy {
     this.loadMore();
   }
 
-  deselectItem(id: number) {
-    this.itemsService.deselectItem(id).subscribe(() => this.sync.notify(id, 'deselected'));
+  deselectItem(item: Item) {
+    this.itemsService.deselectItem(item.id).subscribe(() => this.sync.notify('deselected', item));
   }
 
-  /**
-   * Drag&Drop с поддержкой фильтра и виртуального скролла.
-   *
-   * 1. Восстанавливаем РЕАЛЬНЫЕ индексы в отфильтрованном массиве
-   *    (CDK с виртуальным скроллом отдаёт индексы в отрендеренном окне).
-   * 2. Локально переставляем отфильтрованный массив.
-   * 3. По новой позиции вычисляем ЯКОРЬ (сосед сверху/снизу) и
-   *    отправляем на сервер ID + якорь. Сервер переставляет в ПОЛНОМ
-   *    selectedOrder по ID — фильтр клиента ему не важен.
-   */
-  drop(event: CdkDragDrop<number[], number[], [number, number]>) {
-    // 1. Реальный previousIndex из cdkDragData
+  drop(event: CdkDragDrop<Item[], Item[], [Item, number]>) {
     const [, realPrevIndex] = event.item.data;
     event.previousIndex = realPrevIndex;
 
-    // 2. Реальный currentIndex из data-drag-index на drop-цели
     const containerEl = event.container.element.nativeElement as HTMLElement;
     const dropTarget = containerEl.getElementsByClassName('cdk-drag')[event.currentIndex];
     const realCurrentIndexStr = dropTarget?.getAttribute('data-drag-index');
@@ -126,28 +122,32 @@ export class RightPanel implements OnInit, AfterViewInit, OnDestroy {
 
     if (event.previousIndex === event.currentIndex) return;
 
-    // 3. Локальная перестановка отфильтрованного массива
     const arr = [...this.items()];
     moveItemInArray(arr, event.previousIndex, event.currentIndex);
     this.items.set(arr);
 
-    // 4. Вычисляем якорь по НОВОЙ позиции в отфильтрованном массиве
-    const movedId = arr[event.currentIndex];
-    const afterId = event.currentIndex > 0 ? arr[event.currentIndex - 1] : null;
-    const beforeId = event.currentIndex === 0 && arr.length > 1 ? arr[1] : null;
+    const movedItem = arr[event.currentIndex];
+    const afterItem = event.currentIndex > 0 ? arr[event.currentIndex - 1] : null;
+    const beforeItem = event.currentIndex === 0 && arr.length > 1 ? arr[1] : null;
 
-    // 5. Отправляем ID + якорь. Индексы в полном списке вычисляет сервер
-    this.itemsService.reorder(movedId, beforeId, afterId).subscribe({
-      error: (err: Error) => {
-        console.error('[right] reorder failed, refetch', err);
-        this.applyFilter(); // при ошибке откатываемся к данным с сервера
-      },
-    });
+    this.itemsService
+      .reorder(movedItem.id, beforeItem?.id ?? null, afterItem?.id ?? null)
+      .subscribe({
+        error: (err) => {
+          console.error('[right] reorder failed, refetch', err);
+          this.applyFilter();
+        },
+      });
   }
 
   updateFilter(value: string) {
     this.filterQuery.set(value);
-    this.applyFilter();
+
+    if (this.filterDebounce) clearTimeout(this.filterDebounce);
+    this.filterDebounce = setTimeout(() => {
+      this.applyFilter();
+      this.filterDebounce = undefined;
+    }, this.FILTER_DEBOUNCE_MS);
   }
 
   private checkScroll() {
@@ -162,25 +162,27 @@ export class RightPanel implements OnInit, AfterViewInit, OnDestroy {
     if (fromBottom < 200 || nearEnd) this.loadMore();
   }
 
-  private onSyncSelected(id: number) {
+  private onSyncSelected(item: Item) {
     const filter = this.filterQuery();
-    if (filter && !String(id).includes(filter)) return;
+    const matches = !filter || item.content.toLowerCase().includes(filter.toLowerCase());
+    if (!matches) return;
 
     this.total.update(t => t + 1);
     if (!this.hasMore()) {
-      this.items.update(prev => [...prev, id]);
+      this.items.update(prev => [...prev, item]);
       this.nextOffset += 1;
     }
     this.hasMore.set(this.nextOffset < this.total());
   }
 
-  private onSyncDeselected(id: number) {
+  private onSyncDeselected(item: Item) {
     const filter = this.filterQuery();
-    if (filter && !String(id).includes(filter)) return;
+    const matches = !filter || item.content.toLowerCase().includes(filter.toLowerCase());
+    if (!matches) return;
 
-    const idx = this.items().indexOf(id);
+    const idx = this.items().findIndex(x => x.id === item.id);
     if (idx !== -1) {
-      this.items.update(prev => prev.filter(x => x !== id));
+      this.items.update(prev => prev.filter(x => x.id !== item.id));
       this.nextOffset = Math.max(0, this.nextOffset - 1);
     }
     this.total.update(t => t - 1);

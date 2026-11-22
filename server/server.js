@@ -65,12 +65,17 @@ app.get('/api/items/unselected', listEndpoint(
 ));
 
 app.post('/api/items/add', (req, res) => {
-  const { id } = req.body;
-  if (id == null || !Number.isInteger(id)) {
-    return res.status(400).json({ error: 'ID должен быть целым числом' });
+  const { content } = req.body;
+  if (typeof content !== 'string' || !content.trim()) {
+    return res.status(400).json({ error: 'Content должен быть непустой строкой' });
   }
-  const queued = dedupQueue.enqueue(id);
-  res.json({ queued, id });
+  const trimmed = content.trim();
+
+  if (store.hasContent(trimmed)) {
+    return res.json({ queued: false, reason: 'exists' });
+  }
+  const queued = dedupQueue.enqueue(trimmed);
+  res.json({ queued, reason: queued ? 'queued' : 'pending' });
 });
 
 app.post('/api/items/select', (req, res) => {
@@ -131,7 +136,9 @@ app.get('/api/items/state', (req, res) => {
 
 app.get('/', (_req, res) => res.json({ ok: true }));
 
-// ─── Запуск ───────────────────────────────────────────────
+if (process.env.NODE_ENV !== 'test') {
+  const PORT = process.env.PORT || 3000;
+  app.listen(PORT, () => console.log(`Backend на порту ${PORT}`));
+}
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Backend на порту ${PORT}`));
+export default app;

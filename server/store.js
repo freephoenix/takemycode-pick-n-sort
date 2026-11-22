@@ -1,22 +1,36 @@
 class Store {
   constructor() {
-    this.allIds = new Set();
+    this.items = new Map();       // id -> content
+    this.allIds = new Set();      // существующие ID
     this.selectedIds = new Set();
     this.selectedOrder = [];
-    this._seen = new Set();
+    this._contentSet = new Set(); // дедуп по content
+    this._nextId = 1_000_001;
   }
 
   init() {
     for (let i = 1; i <= 1_000_000; i++) {
+      const content = String(i);
+      this.items.set(i, content);
       this.allIds.add(i);
+      this._contentSet.add(content);
     }
   }
 
-  addId(id) {
-    if (this._seen.has(id)) return false;
-    this._seen.add(id);
+  hasContent(content) {
+    return this._contentSet.has(String(content).trim());
+  }
+
+  addByContent(content) {
+    const trimmed = String(content).trim();
+    if (!trimmed || this._contentSet.has(trimmed)) {
+      return null;
+    }
+    const id = this._nextId++;
+    this.items.set(id, trimmed);
     this.allIds.add(id);
-    return true;
+    this._contentSet.add(trimmed);
+    return { id, content: trimmed };
   }
 
   select(id) {
@@ -29,7 +43,9 @@ class Store {
   }
 
   deselect(id) {
-    if (!this.selectedIds.has(id)) return false;
+    if (!this.selectedIds.has(id)) {
+      return false;
+    }
     this.selectedIds.delete(id);
     this.selectedOrder = this.selectedOrder.filter(x => x !== id);
     return true;
@@ -46,42 +62,43 @@ class Store {
   reorderByAnchor(itemId, beforeId, afterId) {
     const idx = this.selectedOrder.indexOf(itemId);
     if (idx === -1) return null;
-
     const [item] = this.selectedOrder.splice(idx, 1);
-
     let insertAt = this.selectedOrder.length;
     if (beforeId != null) {
       const b = this.selectedOrder.indexOf(beforeId);
-      if (b !== -1) {
-        insertAt = b;
-      }
+      if (b !== -1) insertAt = b;
     } else if (afterId != null) {
       const a = this.selectedOrder.indexOf(afterId);
-      if (a !== -1) {
-        insertAt = a + 1;
-      }
+      if (a !== -1) insertAt = a + 1;
     }
-
     this.selectedOrder.splice(insertAt, 0, item);
     return this.selectedOrder;
   }
 
   /** Невыбранные ID в порядке возрастания, отфильтрованные по q */
   * _unselectedSource(q) {
-    const s = String(q).trim();
+    const s = String(q).trim().toLowerCase();
     for (const id of this.allIds) {
-      if (this.selectedIds.has(id)) continue;
-      if (s && !String(id).includes(s)) continue;
-      yield id;
+      if (this.selectedIds.has(id)) {
+        continue;
+      }
+      const content = this.items.get(id);
+      if (s && !content.toLowerCase().includes(s)) {
+        continue;
+      }
+      yield { id, content };
     }
   }
 
   /** Выбранные ID в порядке выбора, отфильтрованные по q */
-  * _selectedSource(q) {
-    const s = String(q).trim();
+  *_selectedSource(q) {
+    const s = String(q).trim().toLowerCase();
     for (const id of this.selectedOrder) {
-      if (s && !String(id).includes(s)) continue;
-      yield id;
+      const content = this.items.get(id);
+      if (s && !content.toLowerCase().includes(s)) {
+        continue;
+      }
+      yield { id, content };
     }
   }
 
@@ -109,11 +126,9 @@ class Store {
   getUnselected(offset, limit) {
     return Store._take(this._unselectedSource(''), offset, limit);
   }
-
   searchUnselected(q, offset, limit) {
     return Store._take(this._unselectedSource(q), offset, limit);
   }
-
   countUnselected(q) {
     return Store._count(this._unselectedSource(q));
   }
@@ -121,11 +136,9 @@ class Store {
   getSelected(offset, limit) {
     return Store._take(this._selectedSource(''), offset, limit);
   }
-
   searchSelected(q, offset, limit) {
     return Store._take(this._selectedSource(q), offset, limit);
   }
-
   countSelected(q) {
     return Store._count(this._selectedSource(q));
   }

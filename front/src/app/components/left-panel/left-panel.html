@@ -4,30 +4,36 @@
   <div class="filter-row">
     <input
       type="text"
-      placeholder="Фильтр по ID..."
+      placeholder="Фильтр по содержимому..."
       [ngModel]="filterQuery()"
-      (ngModelChange)="updateFilter($event)"/>
+      (ngModelChange)="updateFilter($event)"
+    />
   </div>
 
   <div class="add-row">
     <input
-      type="number"
-      placeholder="Новый ID"
-      [ngModel]="newId()"
-      (ngModelChange)="updateNewId($event)"/>
-    <button (click)="addItem()" [disabled]="newId() === null">Добавить</button>
+      type="text"
+      placeholder="Текст нового элемента"
+      [ngModel]="newContent()"
+      (ngModelChange)="updateNewContent($event)"
+    />
+    <button (click)="addItem()" [disabled]="!newContent().trim()">Добавить</button>
   </div>
+
+  <div *ngIf="pendingMessage()" class="pending-message">{{ pendingMessage() }}</div>
 
   <cdk-virtual-scroll-viewport
     itemSize="48"
     class="viewport"
     (scrolledIndexChange)="onScrolled()"
-    (scroll)="onScrolled()">
+    (scroll)="onScrolled()"
+  >
     <div
-      *cdkVirtualFor="let id of items()"
+      *cdkVirtualFor="let item of items(); trackBy: trackById"
       class="item-row"
-      (click)="selectItem(id)">
-      <span class="item-id">{{ id }}</span>
+      (click)="selectItem(item)"
+    >
+      <span class="item-content">{{ item.content }}</span>
       <button class="select-btn">→</button>
     </div>
   </cdk-virtual-scroll-viewport>

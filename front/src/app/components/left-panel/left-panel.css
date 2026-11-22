@@ -1,11 +1,12 @@
-.filter-row, .add-row {
+.filter-row,
+.add-row {
   display: flex;
   gap: 8px;
   margin-bottom: 8px;
 }
 
 input {
-  flex: 1;
+  width: 100%;
 }
 
 button {
@@ -33,13 +34,22 @@ button:disabled {
   background: #e3f2fd;
 }
 
-.item-id {
-  font-family: monospace;
+.item-content {
   font-size: 14px;
+  word-break: break-word;
 }
 
 .select-btn {
   padding: 4px 10px;
   font-size: 16px;
   background: #4caf50;
+}
+
+.pending-message {
+  margin-bottom: 8px;
+  padding: 6px 10px;
+  font-size: 12px;
+  color: #6a1b9a;
+  background: #f3e5f5;
+  border-radius: 4px;
 }

@@ -1,7 +1,11 @@
 import { inject, Injectable } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
-import { environment } from '../../environments/environment';
+
+export interface Item {
+  id: number;
+  content: string;
+}
 
 export interface PageResponse<T> {
   items: T[];
@@ -10,27 +14,31 @@ export interface PageResponse<T> {
   nextOffset: number;
 }
 
+export type AddResult = {
+  queued: boolean;
+  reason: 'queued' | 'pending' | 'exists';
+};
+
 @Injectable({providedIn: 'root'})
 export class Items {
   private http = inject(HttpClient);
-  private baseUrl = environment.apiUrl;
+  private baseUrl = '/api/items';
 
-  getItems(type: string, offset: number, limit = 20, q = ''): Observable<PageResponse<number>> {
+  getItems(type: string, offset: number, limit = 20, q = ''): Observable<PageResponse<Item>> {
     let params = new HttpParams().set('offset', offset).set('limit', limit);
     if (q) params = params.set('q', q);
-    console.log(`${this.baseUrl}/${type}`);
-    return this.http.get<PageResponse<number>>(`${this.baseUrl}/${type}`, {params});
+    return this.http.get<PageResponse<Item>>(`${this.baseUrl}/${type}`, {params});
   }
 
-  addItem(id: number): Observable<{ queued: boolean; id: number }> {
-    return this.http.post<{ queued: boolean; id: number }>(`${this.baseUrl}/add`, {id});
+  addItem(content: string): Observable<AddResult> {
+    return this.http.post<AddResult>(`${this.baseUrl}/add`, {content});
   }
 
-  selectItem(id: number): Observable<{ selected: boolean; id: number }> {
+  selectItem(id: number) {
     return this.http.post<{ selected: boolean; id: number }>(`${this.baseUrl}/select`, {id});
   }
 
-  deselectItem(id: number): Observable<{ deselected: boolean; id: number }> {
+  deselectItem(id: number) {
     return this.http.post<{ deselected: boolean; id: number }>(`${this.baseUrl}/deselect`, {id});
   }
 
@@ -41,7 +49,7 @@ export class Items {
     );
   }
 
-  getState(): Observable<{ selectedOrder: number[]; selectedCount: number }> {
+  getState() {
     return this.http.get<{ selectedOrder: number[]; selectedCount: number }>(`${this.baseUrl}/state`);
   }
 }

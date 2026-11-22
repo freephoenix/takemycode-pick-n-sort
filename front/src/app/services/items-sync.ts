@@ -1,15 +1,16 @@
 import { Injectable } from '@angular/core';
 import { Subject } from 'rxjs';
+import { Item } from './items';
 
 type ItemChangeType = 'selected' | 'deselected'
-export type ItemChange = { id: number; type: ItemChangeType };
+export type ItemChange = { type: ItemChangeType; item: Item };
 
 @Injectable({providedIn: 'root'})
 export class ItemsSync {
   private readonly changes$ = new Subject<ItemChange>();
   readonly changes = this.changes$.asObservable();
 
-  notify(id: number, type: ItemChangeType) {
-    this.changes$.next({id, type});
+  notify(type: ItemChangeType, item: Item) {
+    this.changes$.next({type, item});
   }
 }
